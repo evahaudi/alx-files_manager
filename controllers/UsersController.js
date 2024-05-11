@@ -1,29 +1,38 @@
-import sha1 from 'sha1';
 import dbClient from '../utils/db';
-import redisClient from '../utils/redis';
+import { userQueue } from '../worker';
 
-async function postNew(req, res) {
-  const { email, password } = req.body;
-  if (!email) return res.status(400).send('Missing email');
-  if (!password) { return res.status(400).send('Missing password'); }
-  if (await dbClient.findUser({ email })) return res.status(400).send('Already exist');
-  const user = await dbClient.addUsers(email, sha1(password));
-  return res.status(201).json({ id: user._id, email: user.email });
-}
+/**
+ * UsersController class
+ */
+class UsersController {
+  /**
+   * Handles the creation of a new user.
+   *
+   * @param {Object} request - The request object containing the user's email
+   * and password.
+   * @param {Object} response - The response object.
+   * @return {Object} The response object containing the newly created user's
+   * data.
+   */
+  static async postNew(request, response) {
+    const { email, password } = request.body;
 
-async function getMe(req, res) {
-  console.log(req.headers['x-token']);
-  const token = await redisClient.get(`auth_${req.headers['x-token']}`);
-  console.log(token);
-  if (token) {
-    const user = await dbClient.findUser({ _id: token });
-    console.log('getme: ', user);
-    return res.status(204).json({ id: user._id, email: user.email });
+    if (!email) {
+      return response.status(400).json({ error: 'Missing email' });
+    }
+    if (!password) {
+      return response.status(400).json({ error: 'Missing password' });
+    }
+
+    const existingUser = await dbClient.findUserByEmail(email);
+    if (existingUser) {
+      return response.status(400).json({ error: 'Already exist' });
+    }
+
+    const newUser = await dbClient.addUser(email, password);
+    userQueue.add({ userId: newUser.id });
+    return response.status(201).json(newUser);
   }
-  return res.status(401).json({ error: 'Unauthorized' });
 }
 
-module.exports = {
-  postNew,
-  getMe,
-};
+export default UsersController;

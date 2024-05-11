@@ -1,14 +1,9 @@
 import express from 'express';
 import router from './routes';
 
-const PORT = process.env.PORT || 5000;
-
 const app = express();
-
-app.use(express.json());
+app.use(express.json({ limit: '100mb' }));
 app.use(router);
+app.listen(process.env.PORT || 5000);
 
-app.listen(PORT, (err) => {
-  if (err) console.log(err);
-  console.log(`Server running on port ${PORT}`);
-});
+export default app;
